@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.net.SocketAddress;
+import java.nio.ByteBuffer;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.nio.channels.ServerSocketChannel;
@@ -19,6 +20,7 @@ public class NIOSocketServer {
 	private void startServer() throws IOException{
 		this.selector = Selector.open();
 		ServerSocketChannel channel = ServerSocketChannel.open();
+		channel.configureBlocking(false);
 		channel.socket().bind(socketAddress);
 		channel.register(selector, SelectionKey.OP_ACCEPT);
 		while(true){
@@ -31,7 +33,13 @@ public class NIOSocketServer {
 					continue;
 				}
 				if(key.isAcceptable()){
-					
+					this.accept(key);
+				}
+				if(key.isReadable()){
+					this.read(key);
+				}
+				if(key.isWritable()){
+					//this.write(key);
 				}
 			}
 		}
@@ -47,15 +55,35 @@ public class NIOSocketServer {
 		channel.register(selector, SelectionKey.OP_READ);
 	}
 	
-	public static void main(String[] args) throws IOException {
-		ServerSocketChannel serverSocketChannel = ServerSocketChannel.open();
-		serverSocketChannel.socket().bind(new InetSocketAddress(9999));
-		serverSocketChannel.configureBlocking(false);
-		while (true) {
-			SocketChannel socketChannel = serverSocketChannel.accept();
-			if (socketChannel != null) {
-				// do something with socketChannel...
-			}
+	private void read (SelectionKey key) throws IOException{
+		SocketChannel channel = (SocketChannel) key.channel();
+		ByteBuffer buffer = ByteBuffer.allocate(1024);
+		int numRead = channel.read(buffer);
+		if(numRead == -1){
+			return;
 		}
+		
+		byte[] data = new byte[numRead];
+		System.arraycopy(buffer.array(), 0, data, 0, numRead);
+		System.out.println("Got :" + new String(data));
+		//channel.register(selector, SelectionKey.OP_WRITE);
+		ByteBuffer buffer2 = ByteBuffer.wrap("return 1111".getBytes());
+		channel.write(buffer);
+	}
+	
+	private void write (SelectionKey key) throws IOException{
+		SocketChannel channel = (SocketChannel) key.channel();
+		ByteBuffer buffer = ByteBuffer.allocate(1024);
+		buffer.wrap("return 1111".getBytes());
+		channel.write(buffer);
+		Socket socket = channel.socket();
+		SocketAddress remoteAdd = socket.getRemoteSocketAddress();
+		//System.out.println("Connection closed by client:" + remoteAdd);
+		//channel.close();
+		//key.cancel();
+	}
+	
+	public static void main(String[] args) throws IOException {
+		new NIOSocketServer().startServer();
 	}
 }
